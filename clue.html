@@ -176,10 +176,10 @@
       Tip: edit the clue text in the HTML, then open it in a browser or host it on GitHub Pages / Netlify.
     </div>
   </main>
-<script>
-  const CLUE_TEXT = "PUT YOUR CLUE HERE";
+  <script>
+  const CLUE_TEXT = "The next clue is frozen";
   const targetHour = 23;
-  const targetMinute = 35;
+  const targetMinute = 39;
 
   const hoursEl = document.getElementById('hours');
   const minutesEl = document.getElementById('minutes');
@@ -195,31 +195,14 @@
     return String(n).padStart(2, '0');
   }
 
-  function getNextUnlock() {
-    const now = new Date();
-    const unlock = new Date(now);
-    unlock.setHours(targetHour, targetMinute, 0, 0);
-
-    if (now >= unlock) {
-      unlock.setDate(unlock.getDate() + 1);
-    }
-
-    return unlock;
-  }
+  const unlockAt = new Date();
+  unlockAt.setHours(targetHour, targetMinute, 0, 0);
 
   function updateClock() {
     const now = new Date();
-    const unlock = getNextUnlock();
-
     ampmEl.textContent = 'AM';
 
-    const diff = unlock - now;
-    const totalSeconds = Math.max(0, Math.floor(diff / 1000));
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
-
-    if (totalSeconds === 0) {
+    if (now >= unlockAt) {
       hoursEl.textContent = '00';
       minutesEl.textContent = '00';
       secondsEl.textContent = '00';
@@ -228,11 +211,17 @@
       return;
     }
 
+    const diff = unlockAt - now;
+    const totalSeconds = Math.max(0, Math.floor(diff / 1000));
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
     hoursEl.textContent = pad(hours);
     minutesEl.textContent = pad(minutes);
     secondsEl.textContent = pad(seconds);
 
-    const unlockTime = unlock.toLocaleTimeString([], {
+    const unlockTime = unlockAt.toLocaleTimeString([], {
       hour: 'numeric',
       minute: '2-digit'
     });
