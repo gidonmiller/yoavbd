@@ -176,75 +176,73 @@
       Tip: edit the clue text in the HTML, then open it in a browser or host it on GitHub Pages / Netlify.
     </div>
   </main>
+<script>
+  const CLUE_TEXT = "PUT YOUR CLUE HERE";
+  const targetHour = 7;
+  const targetMinute = 30;
 
-  <script>
-    // Change this text to your actual clue.
-    const CLUE_TEXT = "PUT YOUR CLUE HERE";
+  const hoursEl = document.getElementById('hours');
+  const minutesEl = document.getElementById('minutes');
+  const secondsEl = document.getElementById('seconds');
+  const ampmEl = document.getElementById('ampm');
+  const statusEl = document.getElementById('status');
+  const clueBox = document.getElementById('clueBox');
+  const clueText = document.getElementById('clueText');
 
-    const targetHour = 7;
-    const targetMinute = 30;
+  clueText.textContent = CLUE_TEXT;
 
-    const hoursEl = document.getElementById('hours');
-    const minutesEl = document.getElementById('minutes');
-    const secondsEl = document.getElementById('seconds');
-    const ampmEl = document.getElementById('ampm');
-    const statusEl = document.getElementById('status');
-    const clueBox = document.getElementById('clueBox');
-    const clueText = document.getElementById('clueText');
+  function pad(n) {
+    return String(n).padStart(2, '0');
+  }
 
-    clueText.textContent = CLUE_TEXT;
+  function getNextUnlock() {
+    const now = new Date();
+    const unlock = new Date(now);
+    unlock.setHours(targetHour, targetMinute, 0, 0);
 
-    function pad(n) {
-      return String(n).padStart(2, '0');
+    if (now >= unlock) {
+      unlock.setDate(unlock.getDate() + 1);
     }
 
-    function getNextUnlock() {
-      const now = new Date();
-      const unlock = new Date(now);
-      unlock.setHours(targetHour, targetMinute, 0, 0);
-      if (now >= unlock) {
-        return now;
-      }
-      return unlock;
+    return unlock;
+  }
+
+  function updateClock() {
+    const now = new Date();
+    const unlock = getNextUnlock();
+
+    ampmEl.textContent = 'AM';
+
+    const diff = unlock - now;
+    const totalSeconds = Math.max(0, Math.floor(diff / 1000));
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    if (totalSeconds === 0) {
+      hoursEl.textContent = '00';
+      minutesEl.textContent = '00';
+      secondsEl.textContent = '00';
+      statusEl.innerHTML = '<span class="sparkle">Unlocked!</span> Go find the next step.';
+      clueBox.style.display = 'block';
+      return;
     }
 
-    function updateClock() {
-      const now = new Date();
-      const unlock = new Date(now);
-      unlock.setHours(targetHour, targetMinute, 0, 0);
+    hoursEl.textContent = pad(hours);
+    minutesEl.textContent = pad(minutes);
+    secondsEl.textContent = pad(seconds);
 
-      const targetLabel = unlock.getHours() >= 12 ? 'PM' : 'AM';
-      ampmEl.textContent = targetLabel;
+    const unlockTime = unlock.toLocaleTimeString([], {
+      hour: 'numeric',
+      minute: '2-digit'
+    });
 
-      if (now >= unlock) {
-        hoursEl.textContent = '00';
-        minutesEl.textContent = '00';
-        secondsEl.textContent = '00';
-        statusEl.innerHTML = '<span class="sparkle">Unlocked!</span> Go find the next step.';
-        clueBox.style.display = 'block';
-        return;
-      }
+    statusEl.textContent = `The clue unlocks at ${unlockTime}.`;
+    clueBox.style.display = 'none';
+  }
 
-      const diff = unlock - now;
-      const totalSeconds = Math.max(0, Math.floor(diff / 1000));
-      const hours = Math.floor(totalSeconds / 3600);
-      const minutes = Math.floor((totalSeconds % 3600) / 60);
-      const seconds = totalSeconds % 60;
-
-      hoursEl.textContent = pad(hours);
-      minutesEl.textContent = pad(minutes);
-      secondsEl.textContent = pad(seconds);
-
-      const unlockTime = unlock.toLocaleTimeString([], {
-        hour: 'numeric',
-        minute: '2-digit'
-      });
-      statusEl.textContent = `The clue unlocks at ${unlockTime}.`;
-      clueBox.style.display = 'none';
-    }
-
-    updateClock();
-    setInterval(updateClock, 1000);
-  </script>
+  updateClock();
+  setInterval(updateClock, 1000);
+</script>
 </body>
 </html>
