@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Yoav Birthday Maze Runner</title>
+  <style>
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #111;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      image-rendering: pixelated;
+    }
+    .hud {
+      position: fixed;
+      left: 16px;
+      bottom: 16px;
+      color: #fff;
+      background: rgba(0,0,0,0.45);
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-size: 14px;
+      line-height: 1.35;
+      user-select: none;
+      backdrop-filter: blur(4px);
+      max-width: min(460px, calc(100vw - 32px));
+    }
+    .title {
+      position: fixed;
+      top: 16px;
+      left: 16px;
+      color: #fff;
+      background: rgba(0,0,0,0.35);
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-weight: 700;
+      user-select: none;
+      backdrop-filter: blur(4px);
+    }
+    .overlay {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.55);
+      color: #fff;
+      text-align: center;
+      user-select: none;
+    }
+    .panel {
+      background: rgba(20,20,20,0.92);
+      border: 2px solid rgba(255,255,255,0.2);
+      border-radius: 18px;
+      padding: 28px 24px;
+      max-width: 520px;
+      margin: 20px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.45);
+    }
+    .panel h1 {
+      margin: 0 0 10px;
+      font-size: clamp(28px, 5vw, 48px);
+    }
+    .panel p {
+      margin: 0;
+      font-size: clamp(18px, 3vw, 28px);
+      line-height: 1.3;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <div class="title">Yoav Birthday Maze Runner</div>
+  <div class="hud">
+    Move: <b>WASD</b> or <b>Arrow Keys</b><br>
+    Turn: <b>Q/E</b> or Left/Right arrows<br>
+    Find the exit and read the sign.
+  </div>
+  <div class="overlay" id="winOverlay">
+    <div class="panel">
+      <h1>Great job!</h1>
+      <p>Look in your sock drawer</p>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const winOverlay = document.getElementById('winOverlay');
+
+  const config = {
+    startSignText: 'Happy birthday Yoav!',
+    exitSignText: 'Look in your sock drawer',
+    fov: Math.PI / 3,
+    moveSpeed: 2.9,
+    turnSpeed: 2.0,
+    playerRadius: 0.18,
+    wallHeight: 1.0,
+    screenScale: 1.0
+  };
+
+  const map = [
+    [1,1,1,1,1,1,1,1,1],
+    [1,0,0,0,1,0,0,0,1],
+    [1,0,1,0,1,0,1,0,1],
+    [1,0,1,0,0,0,1,0,1],
+    [1,0,1,1,1,0,1,0,1],
+    [1,0,0,0,1,0,0,0,1],
+    [1,1,1,0,1,1,1,0,1],
+    [1,0,0,0,0,0,0,0,1],
+    [1,1,1,1,1,1,1,0,0]
+  ];
+
+  const mapW = map[0].length;
+  const mapH = map.length;
+
+  const start = { x: 1.5, y: 1.5 };
+  const exit = { x: 8.55, y: 8.5 };
+  const signs = [
+    { x: 1.5, y: 2.35, text: config.startSignText, color: '#ffe08a' },
+    { x: 8.05, y: 8.18, text: config.exitSignText, color: '#d8ffb0' }
+  ];
+
+  const player = {
+    x: start.x,
+    y: start.y,
+    angle: Math.PI / 4,
+    won: false
+  };
+
+  const keys = new Set();
+  let lastT = performance.now();
+
+  function resize() {
+    const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+    canvas.width = Math.floor(window.innerWidth * dpr);
+    canvas.height = Math.floor(window.innerHeight * dpr);
+    canvas.style.width = window.innerWidth + 'px';
+    canvas.style.height = window.innerHeight + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  window.addEventListener('keydown', (e) => {
+    keys.add(e.key.toLowerCase());
+    if (['arrowup','arrowdown','arrowleft','arrowright',' '].includes(e.key.toLowerCase())) e.preventDefault();
+    if (e.key === ' ' && player.won) {
+      player.x = start.x;
+      player.y = start.y;
+      player.angle = Math.PI / 4;
+      player.won = false;
+      winOverlay.style.display = 'none';
+    }
+  }, { passive: false });
+
+  window.addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()));
+
+  function isWall(x, y) {
+    const mx = Math.floor(x);
+    const my = Math.floor(y);
+    if (mx < 0 || my < 0 || mx >= mapW || my >= mapH) return true;
+    return map[my][mx] === 1;
+  }
+
+  function clampAngle(a) {
+    a %= Math.PI * 2;
+    if (a < 0) a += Math.PI * 2;
+    return a;
+  }
+
+  function tryMove(nx, ny) {
+    const r = config.playerRadius;
+    if (!isWall(nx + r, ny) && !isWall(nx - r, ny) && !isWall(nx, ny + r) && !isWall(nx, ny - r)) {
+      player.x = nx;
+      player.y = ny;
+      return;
+    }
+    if (!isWall(nx + r, player.y) && !isWall(nx - r, player.y)) player.x = nx;
+    if (!isWall(player.x, ny + r) && !isWall(player.x, ny - r)) player.y = ny;
+  }
+
+  function castRay(angle) {
+    const step = 0.02;
+    let dist = 0;
+    let hit = false;
+    let hitX = player.x;
+    let hitY = player.y;
+    const dx = Math.cos(angle) * step;
+    const dy = Math.sin(angle) * step;
+    while (!hit && dist < 20) {
+      hitX += dx;
+      hitY += dy;
+      dist += step;
+      if (isWall(hitX, hitY)) hit = true;
+    }
+    return { dist, hitX, hitY };
+  }
+
+  function projectSprite(obj) {
+    const dx = obj.x - player.x;
+    const dy = obj.y - player.y;
+    const cos = Math.cos(-player.angle);
+    const sin = Math.sin(-player.angle);
+    const camX = dx * cos - dy * sin;
+    const camY = dx * sin + dy * cos;
+    if (camY <= 0.05) return null;
+
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const focal = (w / 2) / Math.tan(config.fov / 2);
+    const screenX = w / 2 + (camX / camY) * focal;
+    const size = Math.max(18, (1.15 / camY) * focal * 0.4);
+
+    return { screenX, size, depth: camY };
+  }
+
+  function drawSprite(obj, text, bg) {
+    const p = projectSprite(obj);
+    if (!p) return;
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const x = p.screenX;
+    const y = h / 2 - p.size * 0.45;
+    if (x < -p.size || x > w + p.size) return;
+
+    // occlusion against wall columns is intentionally light for simplicity
+    ctx.save();
+    ctx.globalAlpha = Math.max(0.25, Math.min(1, 4 / p.depth));
+    ctx.fillStyle = bg;
+    roundRect(ctx, x - p.size * 0.85, y - p.size * 0.55, p.size * 1.7, p.size * 1.1, 12);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.fillStyle = '#202020';
+    ctx.font = `700 ${Math.max(14, Math.floor(p.size * 0.18))}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    wrapText(ctx, text, x, y, p.size * 1.45, Math.max(16, p.size * 0.28));
+    ctx.restore();
+  }
+
+  function wrapText(ctx, text, cx, cy, maxWidth, lineHeight) {
+    const words = text.split(' ');
+    const lines = [];
+    let line = '';
+    for (const word of words) {
+      const test = line ? line + ' ' + word : word;
+      if (ctx.measureText(test).width > maxWidth && line) {
+        lines.push(line);
+        line = word;
+      } else {
+        line = test;
+      }
+    }
+    if (line) lines.push(line);
+    const totalH = lineHeight * lines.length;
+    let y = cy - totalH / 2 + lineHeight / 2;
+    for (const l of lines) {
+      ctx.fillText(l, cx, y);
+      y += lineHeight;
+    }
+  }
+
+  function roundRect(ctx, x, y, w, h, r) {
+    const rr = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rr);
+    ctx.arcTo(x + w, y + h, x, y + h, rr);
+    ctx.arcTo(x, y + h, x, y, rr);
+    ctx.arcTo(x, y, x + w, y, rr);
+    ctx.closePath();
+  }
+
+  function drawMiniMap() {
+    const size = 150;
+    const margin = 16;
+    const cell = size / mapW;
+    const x0 = window.innerWidth - size - margin;
+    const y0 = margin + 48;
+
+    ctx.save();
+    ctx.globalAlpha = 0.86;
+    ctx.fillStyle = 'rgba(0,0,0,0.42)';
+    roundRect(ctx, x0 - 10, y0 - 10, size + 20, size + 20, 14);
+    ctx.fill();
+
+    for (let y = 0; y < mapH; y++) {
+      for (let x = 0; x < mapW; x++) {
+        ctx.fillStyle = map[y][x] ? '#344c77' : '#cfd6e0';
+        ctx.fillRect(x0 + x * cell, y0 + y * cell, cell - 1, cell - 1);
+      }
+    }
+
+    // exit marker
+    ctx.fillStyle = '#ffd24a';
+    ctx.fillRect(x0 + exit.x * cell - 3, y0 + exit.y * cell - 3, 6, 6);
+
+    // player arrow
+    const px = x0 + player.x * cell;
+    const py = y0 + player.y * cell;
+    ctx.fillStyle = '#ff4d4d';
+    ctx.beginPath();
+    ctx.arc(px, py, 4.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#ff4d4d';
+    ctx.beginPath();
+    ctx.moveTo(px, py);
+    ctx.lineTo(px + Math.cos(player.angle) * 10, py + Math.sin(player.angle) * 10);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function draw() {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+
+    // sky and floor
+    const sky = ctx.createLinearGradient(0, 0, 0, h * 0.55);
+    sky.addColorStop(0, '#20314f');
+    sky.addColorStop(1, '#7c8fa8');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, w, h / 2);
+
+    const floor = ctx.createLinearGradient(0, h * 0.5, 0, h);
+    floor.addColorStop(0, '#555');
+    floor.addColorStop(1, '#222');
+    ctx.fillStyle = floor;
+    ctx.fillRect(0, h / 2, w, h / 2);
+
+    const rays = Math.max(220, Math.floor(w * 0.9));
+    const colW = w / rays;
+    const focal = (w / 2) / Math.tan(config.fov / 2);
+
+    for (let i = 0; i < rays; i++) {
+      const t = i / rays;
+      const angle = player.angle - config.fov / 2 + t * config.fov;
+      const ray = castRay(angle);
+      const corrected = ray.dist * Math.cos(angle - player.angle);
+      const sliceH = Math.min(h, (1 / Math.max(0.0001, corrected)) * focal * config.wallHeight);
+      const top = (h - sliceH) / 2;
+      const shade = Math.max(0, 255 - corrected * 28);
+      const base = Math.floor(shade);
+
+      ctx.fillStyle = `rgb(${base},${Math.max(0, base - 10)},${Math.max(0, base - 25)})`;
+      ctx.fillRect(i * colW, top, colW + 1, sliceH);
+
+      // subtle edge darkening
+      ctx.fillStyle = 'rgba(0,0,0,0.15)';
+      ctx.fillRect(i * colW, top, 1, sliceH);
+    }
+
+    // signs draw after walls so they sit on top visually
+    drawSprite(signs[0], signs[0].text, signs[0].color);
+    drawSprite(signs[1], signs[1].text, signs[1].color);
+
+    drawMiniMap();
+
+    // hint text on screen near start if close
+    if (!player.won) {
+      const dx = player.x - start.x;
+      const dy = player.y - start.y;
+      const nearStart = Math.hypot(dx, dy) < 1.2;
+      if (nearStart) {
+        ctx.save();
+        ctx.globalAlpha = 0.9;
+        ctx.fillStyle = 'rgba(255,255,255,0.75)';
+        roundRect(ctx, w/2 - 170, h - 96, 340, 42, 12);
+        ctx.fill();
+        ctx.fillStyle = '#1d1d1d';
+        ctx.font = '700 18px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('Happy birthday Yoav!', w/2, h - 75);
+        ctx.restore();
+      }
+    }
+  }
+
+  function update(dt) {
+    if (player.won) return;
+
+    const move = config.moveSpeed * dt;
+    const turn = config.turnSpeed * dt;
+
+    const forward = (keys.has('w') || keys.has('arrowup') ? 1 : 0) - (keys.has('s') || keys.has('arrowdown') ? 1 : 0);
+    const strafe = (keys.has('d') ? 1 : 0) - (keys.has('a') ? 1 : 0);
+    const rot = (keys.has('e') ? 1 : 0) - (keys.has('q') ? 1 : 0) + (keys.has('arrowright') ? 1 : 0) - (keys.has('arrowleft') ? 1 : 0);
+
+    if (rot) player.angle = clampAngle(player.angle + rot * turn);
+
+    const nx = player.x + Math.cos(player.angle) * forward * move + Math.cos(player.angle + Math.PI / 2) * strafe * move;
+    const ny = player.y + Math.sin(player.angle) * forward * move + Math.sin(player.angle + Math.PI / 2) * strafe * move;
+    if (forward || strafe) tryMove(nx, ny);
+
+    if (Math.hypot(player.x - exit.x, player.y - exit.y) < 0.45) {
+      player.won = true;
+      winOverlay.style.display = 'flex';
+    }
+  }
+
+  function frame(t) {
+    const dt = Math.min(0.05, (t - lastT) / 1000);
+    lastT = t;
+    update(dt);
+    draw();
+    requestAnimationFrame(frame);
+  }
+
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
