@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Treasure Hunt Clue</title>
+  <style>
+    :root {
+      --bg1: #0f172a;
+      --bg2: #111827;
+      --card: rgba(255, 255, 255, 0.08);
+      --card-border: rgba(255, 255, 255, 0.12);
+      --text: #f8fafc;
+      --muted: #cbd5e1;
+      --accent: #fbbf24;
+      --accent2: #60a5fa;
+      --success: #34d399;
+      --shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top, rgba(96, 165, 250, 0.22), transparent 30%),
+        radial-gradient(circle at bottom right, rgba(251, 191, 36, 0.18), transparent 32%),
+        linear-gradient(180deg, var(--bg1), var(--bg2));
+    }
+
+    body {
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+
+    .card {
+      width: min(720px, 100%);
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: 28px;
+      padding: 28px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(14px);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--muted);
+      font-size: 14px;
+      letter-spacing: 0.2px;
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: clamp(28px, 5vw, 48px);
+      line-height: 1.05;
+    }
+
+    p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 18px;
+      line-height: 1.6;
+    }
+
+    .countdown {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin: 28px 0;
+    }
+
+    .unit {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      border-radius: 18px;
+      padding: 18px 10px;
+      text-align: center;
+    }
+
+    .num {
+      display: block;
+      font-size: clamp(26px, 5vw, 42px);
+      font-weight: 800;
+      color: white;
+      line-height: 1;
+    }
+
+    .label {
+      display: block;
+      margin-top: 8px;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--muted);
+    }
+
+    .status {
+      font-size: 16px;
+      color: var(--muted);
+      margin-top: 8px;
+    }
+
+    .clue {
+      display: none;
+      margin-top: 26px;
+      padding: 24px;
+      border-radius: 24px;
+      border: 1px solid rgba(52, 211, 153, 0.35);
+      background: rgba(52, 211, 153, 0.12);
+    }
+
+    .clue h2 {
+      margin: 0 0 10px;
+      font-size: 22px;
+      color: #d1fae5;
+    }
+
+    .clue p {
+      color: #ecfdf5;
+      font-size: 20px;
+      line-height: 1.65;
+      white-space: pre-wrap;
+    }
+
+    .footer {
+      margin-top: 22px;
+      font-size: 13px;
+      color: rgba(203, 213, 225, 0.72);
+    }
+
+    .sparkle {
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    @media (max-width: 560px) {
+      .card { padding: 20px; border-radius: 22px; }
+      .countdown { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      p { font-size: 16px; }
+      .clue p { font-size: 18px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="card" role="main" aria-live="polite">
+    <div class="badge">🗝️ Treasure Hunt</div>
+    <h1>Almost time!</h1>
+    <p id="message">This clue unlocks at <strong>7:30 AM</strong> local time.</p>
+
+    <section class="countdown" aria-label="Countdown to clue unlock">
+      <div class="unit"><span class="num" id="hours">--</span><span class="label">Hours</span></div>
+      <div class="unit"><span class="num" id="minutes">--</span><span class="label">Minutes</span></div>
+      <div class="unit"><span class="num" id="seconds">--</span><span class="label">Seconds</span></div>
+      <div class="unit"><span class="num" id="ampm">AM</span><span class="label">Target</span></div>
+    </section>
+
+    <div class="status" id="status">Come back when the timer reaches zero.</div>
+
+    <section class="clue" id="clueBox" aria-label="Unlocked clue">
+      <h2>🎉 The clue is ready</h2>
+      <p id="clueText">PUT YOUR CLUE HERE</p>
+    </section>
+
+    <div class="footer">
+      Tip: edit the clue text in the HTML, then open it in a browser or host it on GitHub Pages / Netlify.
+    </div>
+  </main>
+
+  <script>
+    // Change this text to your actual clue.
+    const CLUE_TEXT = "PUT YOUR CLUE HERE";
+
+    const targetHour = 7;
+    const targetMinute = 30;
+
+    const hoursEl = document.getElementById('hours');
+    const minutesEl = document.getElementById('minutes');
+    const secondsEl = document.getElementById('seconds');
+    const ampmEl = document.getElementById('ampm');
+    const statusEl = document.getElementById('status');
+    const clueBox = document.getElementById('clueBox');
+    const clueText = document.getElementById('clueText');
+
+    clueText.textContent = CLUE_TEXT;
+
+    function pad(n) {
+      return String(n).padStart(2, '0');
+    }
+
+    function getNextUnlock() {
+      const now = new Date();
+      const unlock = new Date(now);
+      unlock.setHours(targetHour, targetMinute, 0, 0);
+      if (now >= unlock) {
+        return now;
+      }
+      return unlock;
+    }
+
+    function updateClock() {
+      const now = new Date();
+      const unlock = new Date(now);
+      unlock.setHours(targetHour, targetMinute, 0, 0);
+
+      const targetLabel = unlock.getHours() >= 12 ? 'PM' : 'AM';
+      ampmEl.textContent = targetLabel;
+
+      if (now >= unlock) {
+        hoursEl.textContent = '00';
+        minutesEl.textContent = '00';
+        secondsEl.textContent = '00';
+        statusEl.innerHTML = '<span class="sparkle">Unlocked!</span> Go find the next step.';
+        clueBox.style.display = 'block';
+        return;
+      }
+
+      const diff = unlock - now;
+      const totalSeconds = Math.max(0, Math.floor(diff / 1000));
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+
+      hoursEl.textContent = pad(hours);
+      minutesEl.textContent = pad(minutes);
+      secondsEl.textContent = pad(seconds);
+
+      const unlockTime = unlock.toLocaleTimeString([], {
+        hour: 'numeric',
+        minute: '2-digit'
+      });
+      statusEl.textContent = `The clue unlocks at ${unlockTime}.`;
+      clueBox.style.display = 'none';
+    }
+
+    updateClock();
+    setInterval(updateClock, 1000);
+  </script>
+</body>
+</html>
